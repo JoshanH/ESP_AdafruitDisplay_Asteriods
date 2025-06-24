@@ -13,15 +13,17 @@
 #define WHITE       0xFFFF
 #define BLACK       0x0000
 #define BLUE        0x00FF
+#define RED         0xF800
 #define WIDTH       240
 #define HEIGHT      320
-#define MAXBULLETS  50
+#define MAXBULLETS  35
+#define BULLETSPEED 5        // pixels per tick
 
 /* STRUCTURES ============================================================== */
 
 struct vec2_t {
-  double x;
-  double y;
+  float x;
+  float y;
 };
 
 // cursor/spaceship //
@@ -43,21 +45,21 @@ struct asteroid_t {
   vec2_t tR;
   vec2_t bL;
   vec2_t bR;
-  double slope; // slope of graph determining direction
+  float deg; // angle in degrees
 };
 
 //     bullet       //
 /*       --         */
 struct bullet_t {
-  vec2_t front;
-  vec2_t rear;
-  double slope; // slope of graph determining direction
+  vec2_t head;
+  vec2_t tail;
+  float deg; // angle in degrees
 };
 
 // array of all live bullets with count integrated
 struct bulletList_t 
 {
-  bullet_t** worldBullets;
+  bullet_t* worldBullets[MAXBULLETS];
   int count;
 };
 
@@ -73,7 +75,8 @@ ship_t* buildShip             (vec2_t centre);
 void drawShip                 (ship_t* ship, int colour);
 void rotateShip               (ship_t* ship, int deg);
 bulletList_t* buildBulletList (int arraySize);
-void shootBullet              (bullet_t* worldBullets, vec2_t centre, int deg);
+void shootBullet              (bulletList_t* worldBullets, vec2_t centre, int deg);
+void drawBullet               (bullet_t* bullet, int colour);
 
 // initialise display screen in program
 Adafruit_ST7789 dis = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
@@ -96,7 +99,13 @@ void setup()
   drawShip(ship, BLUE);
 
   // inititialises the world bullets array (all values set to null)
-  bulletList_t* worldBullets = buildBulletList(MAXBULLETS);
+  bulletList_t* worldBulletList = buildBulletList(MAXBULLETS);
+
+  // testing segment == START
+  shootBullet(worldBulletList, ship->centre, ship->dirDeg);
+  drawBullet(worldBulletList->worldBullets[0], RED);
+  dis.drawPixel(0,0,WHITE);
+  // testing segment == END
 }
 
 // loops until power off
@@ -140,10 +149,35 @@ bulletList_t* buildBulletList(int arraySize)
   return bulletList;
 }
 
-// shoots a bullet from a centre point in a direction (degrees)
-void shootBullet(bullet_t* worldBullets, vec2_t centre, int deg)
+// spawns a bullet from a centre point in a direction (degrees)
+void shootBullet(bulletList_t* bulletsList, vec2_t centre, int deg)
 {
+  // gives memory to new bullet
+  bullet_t* newBullet = (bullet_t*) malloc(sizeof(bullet_t));
 
+  // check if memory allocated successfully
+  if (newBullet == NULL)
+  {
+    dis.printf("newBullet malloc fail!");
+  }
+
+  // stores new bullet in world's bullet list
+  bulletsList->worldBullets[bulletsList->count] = newBullet;
+
+  // calculating the position of head and tail 
+  newBullet->tail = centre;
+  // head of the bullet calculated by scaling unit vector in movement direction
+  // (x,y) -> (x + dx, y + dy)
+  // -sin(theta) is used as y axis is inverted on display
+  float rad = deg * (M_PI / 180);
+  newBullet->head.x = centre.x + (cos(rad) * BULLETSPEED);
+  newBullet->head.y = centre.y + (-sin(rad) * BULLETSPEED);
+}
+
+// draws a bullet on screen for a given colour
+void drawBullet(bullet_t* bullet, int colour)
+{
+  drawLineVec(bullet->head, bullet->tail, colour);
 }
 
 // creates a ship at a given location for its centre
@@ -155,7 +189,7 @@ ship_t* buildShip(vec2_t centre)
   ship->tip.x = centre.x; ship->tip.y = centre.y + 10;
   ship->lFin.x = centre.x - 5; ship->lFin.y = centre.y - 5;
   ship->rFin.x = centre.x + 5; ship->rFin.y = centre.y - 5;
-  ship->dirDeg = 180; // pointing down
+  ship->dirDeg = 270; // pointing down
 
   return ship;
 }
@@ -190,14 +224,14 @@ void rotateShip(ship_t* ship, int deg)
 void rotMatCenter(vec2_t* point, float rad, vec2_t* centre) 
 {
   // Translate point to origin
-  double x = point->x - centre->x;
-  double y = point->y - centre->y;
+  float x = point->x - centre->x;
+  float y = point->y - centre->y;
 
   // Rotate
   // R(x) = [cos(x) -sin(x)]
   //        [sin(x)  cos(x)]
-  double x_rot = cos(rad) * x - sin(rad) * y;
-  double y_rot = sin(rad) * x + cos(rad) * y;
+  float x_rot = cos(rad) * x - sin(rad) * y;
+  float y_rot = sin(rad) * x + cos(rad) * y;
 
   // Translate back to center
   point->x = x_rot + centre->x;
