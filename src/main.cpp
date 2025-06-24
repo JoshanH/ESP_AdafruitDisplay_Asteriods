@@ -10,14 +10,17 @@
 #define TFT_DC      16       // Data/Command
 #define TFT_RST     17       // Reset (can be -1 if connected to ESP32 reset)
 #define SERIALDISP  115200   // Serial location of display
+
+#define MAXBULLETS  35       // max number of bullets on screen at once
+#define BULLETSPEED 5        // pixels per tick
+
+#define WIDTH       240
+#define HEIGHT      320
+
 #define WHITE       0xFFFF
 #define BLACK       0x0000
 #define BLUE        0x00FF
-#define RED         0xF800
-#define WIDTH       240
-#define HEIGHT      320
-#define MAXBULLETS  35
-#define BULLETSPEED 5        // pixels per tick
+#define RED         0xF800 
 
 /* STRUCTURES ============================================================== */
 
@@ -165,7 +168,8 @@ void shootBullet(bulletList_t* bulletsList, vec2_t centre, int deg)
   bulletsList->worldBullets[bulletsList->count] = newBullet;
 
   // calculating the position of head and tail 
-  newBullet->tail = centre;
+  newBullet->tail = centre; // centre of ship usually
+
   // head of the bullet calculated by scaling unit vector in movement direction
   // (x,y) -> (x + dx, y + dy)
   // -sin(theta) is used as y axis is inverted on display
