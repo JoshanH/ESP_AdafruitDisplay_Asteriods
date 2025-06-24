@@ -4,19 +4,21 @@
 #include <SPI.h>
 #include <math.h>
 
-// Constants //
-#define TFT_CS   5        // Chip select
-#define TFT_DC   16       // Data/Command
-#define TFT_RST  17       // Reset (can be -1 if connected to ESP32 reset)
-#define SERIALDISP 115200 // Serial location of display
-#define WHITE    0xFFFF
-#define BLACK    0x0000
-#define BLUE     0x00FF
-#define WIDTH    240
-#define HEIGHT   320
-#define MAXBULLETS 50
+/* CONSTANTS =============================================================== */
 
-// Structs //
+#define TFT_CS      5        // Chip select
+#define TFT_DC      16       // Data/Command
+#define TFT_RST     17       // Reset (can be -1 if connected to ESP32 reset)
+#define SERIALDISP  115200   // Serial location of display
+#define WHITE       0xFFFF
+#define BLACK       0x0000
+#define BLUE        0x00FF
+#define WIDTH       240
+#define HEIGHT      320
+#define MAXBULLETS  50
+
+/* STRUCTURES ============================================================== */
+
 struct vec2_t {
   double x;
   double y;
@@ -41,6 +43,7 @@ struct asteroid_t {
   vec2_t tR;
   vec2_t bL;
   vec2_t bR;
+  double slope; // slope of graph determining direction
 };
 
 //     bullet       //
@@ -48,26 +51,35 @@ struct asteroid_t {
 struct bullet_t {
   vec2_t front;
   vec2_t rear;
-  int dirDeg; // direction
+  double slope; // slope of graph determining direction
+};
+
+// array of all live bullets with count integrated
+struct bulletList_t 
+{
+  bullet_t** worldBullets;
+  int count;
 };
 
 /* FUNCTION DECLARATIONS =================================================== */
 
-void initialiseScreen       ();
-void drawLineV              (int x0, int y0, int x1, int y1, int colour);
-void drawLineH              (int x0, int y0, int x1, int y1, int colour);
-void drawLineXY             (int x0, int y0, int x1, int y1, int colour);
-void drawLineVec            (vec2_t p1, vec2_t p2, int colour);
-void rotMatCenter           (vec2_t* point, float rad, vec2_t* centre);
-ship_t* buildShip           (vec2_t centre);
-void drawShip               (ship_t* ship, int colour);
-void rotateShip             (ship_t* ship, int deg);
+void initialiseScreen         ();
+void drawLineV                (int x0, int y0, int x1, int y1, int colour);
+void drawLineH                (int x0, int y0, int x1, int y1, int colour);
+void drawLineXY               (int x0, int y0, int x1, int y1, int colour);
+void drawLineVec              (vec2_t p1, vec2_t p2, int colour);
+void rotMatCenter             (vec2_t* point, float rad, vec2_t* centre);
+ship_t* buildShip             (vec2_t centre);
+void drawShip                 (ship_t* ship, int colour);
+void rotateShip               (ship_t* ship, int deg);
+bulletList_t* buildBulletList (int arraySize);
+void shootBullet              (bullet_t* worldBullets, vec2_t centre, int deg);
 
 // initialise display screen in program
 Adafruit_ST7789 dis = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
 
 
-/* SETUP =================================================================== */
+/* SETUP/MAIN ============================================================== */
 
 void setup() 
 {
@@ -83,8 +95,8 @@ void setup()
   ship_t* ship = buildShip(centreOfScreen);
   drawShip(ship, BLUE);
 
-  // inititialises the bullets in the world to null
-  bullet_t worldBullets[MAXBULLETS] = {NULL};
+  // inititialises the world bullets array (all values set to null)
+  bulletList_t* worldBullets = buildBulletList(MAXBULLETS);
 }
 
 // loops until power off
@@ -104,10 +116,34 @@ void initialiseScreen()
   dis.fillScreen(BLACK);
 }
 
-// shoots a bullet from a centre point in a direction (degrees)
-void shootBullet(vec2_t centre, int deg)
+// allocates memory for an array of bullet_t pointers and returns address
+bulletList_t* buildBulletList(int arraySize)
 {
-  
+  // allocate memory to array
+  bulletList_t* bulletList = (bulletList_t*) malloc(sizeof(bulletList_t));
+
+  // check if memory allocated sucessfully
+  if (bulletList == NULL)
+  {
+    dis.printf("worldBullets array malloc fail!");
+    return NULL;
+  }
+
+  // set bullet count to zero
+  bulletList->count = 0;
+  // set all values to NULL
+  for (int i = 0; i < arraySize; i++)
+  {
+    bulletList->worldBullets[i] = NULL;
+  }
+
+  return bulletList;
+}
+
+// shoots a bullet from a centre point in a direction (degrees)
+void shootBullet(bullet_t* worldBullets, vec2_t centre, int deg)
+{
+
 }
 
 // creates a ship at a given location for its centre
@@ -119,7 +155,7 @@ ship_t* buildShip(vec2_t centre)
   ship->tip.x = centre.x; ship->tip.y = centre.y + 10;
   ship->lFin.x = centre.x - 5; ship->lFin.y = centre.y - 5;
   ship->rFin.x = centre.x + 5; ship->rFin.y = centre.y - 5;
-  ship->dirDeg = 90; // pointing up
+  ship->dirDeg = 180; // pointing down
 
   return ship;
 }
@@ -149,7 +185,8 @@ void rotateShip(ship_t* ship, int deg)
   ship->dirDeg %= 360; // keep degrees below 360
 }
 
-// applies 2D rotational matrix on vec2_t for input radians around an input centre coorinate
+// applies 2D rotational matrix on vec2_t for input radians 
+// around an input centre coorinate
 void rotMatCenter(vec2_t* point, float rad, vec2_t* centre) 
 {
   // Translate point to origin
@@ -171,7 +208,8 @@ void rotMatCenter(vec2_t* point, float rad, vec2_t* centre)
 // (purely for abstraction)
 void drawLineVec(vec2_t p1, vec2_t p2, int colour)
 {
-  drawLineXY((int)round(p1.x), (int)round(p1.y), (int)round(p2.x), (int)round(p2.y), colour);
+  drawLineXY((int)round(p1.x), (int)round(p1.y), 
+             (int)round(p2.x), (int)round(p2.y), colour);
 }
 
 
