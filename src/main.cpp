@@ -77,10 +77,14 @@ void rotMatCenter             (vec2_t* point, float rad, vec2_t* centre);
 ship_t* buildShip             (vec2_t centre);
 void drawShip                 (ship_t* ship, int colour);
 void rotateShip               (ship_t* ship, int deg);
-bulletList_t* buildBulletList (int arraySize);
+bulletList_t* buildBulletList ();
 void shootBullet              (bulletList_t* worldBullets, vec2_t centre, int deg);
 void drawBullet               (bullet_t* bullet, int colour);
-void moveBullet               (bullet_t* bullet);
+void moveBullet               (bullet_t* bullet, bulletList_t* bulletsList);
+void freeBullet               (bullet_t* bullet, bulletList_t* bulletsList);
+bool bulletCollision          (bullet_t* bullet, bulletList_t* bulletsList);
+
+int debugListLength(bulletList_t* list);
 
 // initialise display screen in program
 Adafruit_ST7789 dis = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
@@ -103,16 +107,21 @@ void setup()
   drawShip(ship, BLUE);
 
   // inititialises the world bullets array (all values set to null)
-  bulletList_t* worldBulletList = buildBulletList(MAXBULLETS);
+  bulletList_t* worldBulletList = buildBulletList();
 
   // testing segment == START
   shootBullet(worldBulletList, ship->centre, ship->dirDeg);
   while(1){
     dis.fillScreen(BLACK);
-    moveBullet(worldBulletList->head);
+
+    if (worldBulletList->head != NULL){
+      moveBullet(worldBulletList->head, worldBulletList);
+    }
+
     rotateShip(ship, 10);
-    shootBullet(worldBulletList, ship->centre, ship->dirDeg);
     drawShip(ship, BLUE);
+    dis.setCursor(0,0);
+    dis.printf("World Bullet Count: %d", debugListLength(worldBulletList));
     delay(100);
   }
   // testing segment == END
@@ -122,6 +131,20 @@ void setup()
 void loop() 
 {
 
+}
+
+int debugListLength(bulletList_t* list)
+{
+  bullet_t* current = list->head;
+  int count = 0;
+  
+  while(current != NULL)
+  {
+    current = current->next;
+    count++;
+  }
+
+  return count;
 }
 
 
@@ -135,30 +158,82 @@ void initialiseScreen()
   dis.fillScreen(BLACK);
 }
 
+// checks if a bullet has collided with the edge of the screen or an asteroid
+bool bulletCollision(bullet_t* bullet, bulletList_t* bulletsList)
+{
+  /* check if bullet out of bounds of display */
+  if (bullet->head.x > WIDTH || bullet->head.y > HEIGHT)
+  {
+    /* free bullet from memory and remove from list */
+    freeBullet(bullet, bulletsList);
 
+    /* confirm a collision occured */
+    return true;
+  }
+
+  /* no collision */
+  return false;
+}
+
+void freeBullet(bullet_t* bullet, bulletList_t* bulletsList)
+{
+
+  /* checks if bullet is head in list */
+  if (bulletsList->head == bullet)
+  {
+    bulletsList->head = bullet->next;
+    free(bullet);
+    return;
+  }
+
+  bullet_t* current = bulletsList->head;
+
+  /* search for input bullet in bullet list */
+  while(current->next != NULL && current->next != bullet)
+  {
+    current = current->next;
+  }
+
+  // bullet not in list
+  if (current->next == NULL)
+  {
+    dis.printf("attempted to free nonexistant bullet!");
+    return;
+  }
+
+  current->next = bullet->next;
+  /* bullet is freed from memory */
+  free(bullet);
+}
 
 // updates the bullet's movement and draws bullet in updates location
-void moveBullet(bullet_t* bullet)
+void moveBullet(bullet_t* bullet, bulletList_t* bulletsList)
 {
-  // degrees coonvereted to radians
+  /* degrees coonvereted to radians */
   float rad = bullet->deg * (M_PI / 180);
 
-  // unit vector in direction of input degree scaled by bullet speed
+  /* unit vector in direction of input degree scaled by bullet speed */
   float dx = cos(rad) * BULLETSPEED;
   float dy = -1 * sin(rad) * BULLETSPEED;
 
-  // bullet head and tail vectors updated
+  /* bullet head and tail vectors updated */
   bullet->head.x += dx; 
   bullet->head.y += dy;
   bullet->tail.x += dx;
   bullet->tail.y += dy;
 
-  // draws the bullet
+  /* check if bullet has collision */
+  if (bulletCollision(bullet, bulletsList))
+  {
+    return;
+  }
+
+  /* bullet drawn */
   drawBullet(bullet, RED);
 }
 
 // allocates memory for linked list of bullets
-bulletList_t* buildBulletList(int arraySize)
+bulletList_t* buildBulletList()
 {
   // allocate memory to array
   bulletList_t* bulletList = (bulletList_t*) malloc(sizeof(bulletList_t));
