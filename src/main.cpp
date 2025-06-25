@@ -57,13 +57,13 @@ struct bullet_t {
   vec2_t head;
   vec2_t tail;
   float deg; // angle in degrees
+  bullet_t* next; // for use in world bullet list
 };
 
 // array of all live bullets with count integrated
 struct bulletList_t 
 {
-  bullet_t* worldBullets[MAXBULLETS];
-  int count;
+  bullet_t* head;
 };
 
 /* FUNCTION DECLARATIONS =================================================== */
@@ -80,6 +80,7 @@ void rotateShip               (ship_t* ship, int deg);
 bulletList_t* buildBulletList (int arraySize);
 void shootBullet              (bulletList_t* worldBullets, vec2_t centre, int deg);
 void drawBullet               (bullet_t* bullet, int colour);
+void moveBullet               (bullet_t* bullet);
 
 // initialise display screen in program
 Adafruit_ST7789 dis = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
@@ -106,8 +107,14 @@ void setup()
 
   // testing segment == START
   shootBullet(worldBulletList, ship->centre, ship->dirDeg);
-  drawBullet(worldBulletList->worldBullets[0], RED);
-  dis.drawPixel(0,0,WHITE);
+  while(1){
+    dis.fillScreen(BLACK);
+    moveBullet(worldBulletList->head);
+    rotateShip(ship, 10);
+    shootBullet(worldBulletList, ship->centre, ship->dirDeg);
+    drawShip(ship, BLUE);
+    delay(100);
+  }
   // testing segment == END
 }
 
@@ -128,7 +135,29 @@ void initialiseScreen()
   dis.fillScreen(BLACK);
 }
 
-// allocates memory for an array of bullet_t pointers and returns address
+
+
+// updates the bullet's movement and draws bullet in updates location
+void moveBullet(bullet_t* bullet)
+{
+  // degrees coonvereted to radians
+  float rad = bullet->deg * (M_PI / 180);
+
+  // unit vector in direction of input degree scaled by bullet speed
+  float dx = cos(rad) * BULLETSPEED;
+  float dy = -1 * sin(rad) * BULLETSPEED;
+
+  // bullet head and tail vectors updated
+  bullet->head.x += dx; 
+  bullet->head.y += dy;
+  bullet->tail.x += dx;
+  bullet->tail.y += dy;
+
+  // draws the bullet
+  drawBullet(bullet, RED);
+}
+
+// allocates memory for linked list of bullets
 bulletList_t* buildBulletList(int arraySize)
 {
   // allocate memory to array
@@ -141,13 +170,8 @@ bulletList_t* buildBulletList(int arraySize)
     return NULL;
   }
 
-  // set bullet count to zero
-  bulletList->count = 0;
-  // set all values to NULL
-  for (int i = 0; i < arraySize; i++)
-  {
-    bulletList->worldBullets[i] = NULL;
-  }
+  // sets head bullet pointer to NULL
+  bulletList->head = NULL;
 
   return bulletList;
 }
@@ -155,19 +179,45 @@ bulletList_t* buildBulletList(int arraySize)
 // spawns a bullet from a centre point in a direction (degrees)
 void shootBullet(bulletList_t* bulletsList, vec2_t centre, int deg)
 {
-  // gives memory to new bullet
+  /* allocate memory to new bullet */
+
   bullet_t* newBullet = (bullet_t*) malloc(sizeof(bullet_t));
 
-  // check if memory allocated successfully
+  /* check if memory allocated successfully */
+
   if (newBullet == NULL)
   {
     dis.printf("newBullet malloc fail!");
   }
 
-  // stores new bullet in world's bullet list
-  bulletsList->worldBullets[bulletsList->count] = newBullet;
+  /* add new bullet to world's bullet list */
 
-  // calculating the position of head and tail 
+  // if linked list not empty
+  if (bulletsList->head != NULL){
+    bullet_t* nextBullet = bulletsList->head;
+
+    // search for end bullet of list
+    while(nextBullet->next != NULL)
+    {
+      nextBullet = nextBullet->next;
+    }
+
+    // attach new bullet to end of list
+    nextBullet->next = newBullet;
+  } 
+    else // list is empty
+  {
+    bulletsList->head = newBullet;
+  }
+
+  /* calculate head and tail positions of new bullet */
+
+  // set new bullets list pointer to null
+  newBullet->next = NULL;
+
+  // new bullets direction set
+  newBullet->deg = deg;
+
   newBullet->tail = centre; // centre of ship usually
 
   // head of the bullet calculated by scaling unit vector in movement direction
@@ -175,7 +225,10 @@ void shootBullet(bulletList_t* bulletsList, vec2_t centre, int deg)
   // -sin(theta) is used as y axis is inverted on display
   float rad = deg * (M_PI / 180);
   newBullet->head.x = centre.x + (cos(rad) * BULLETSPEED);
-  newBullet->head.y = centre.y + (-sin(rad) * BULLETSPEED);
+  newBullet->head.y = centre.y + (-1 * sin(rad) * BULLETSPEED);
+
+  // draws the new bullet
+  drawBullet(newBullet, RED);
 }
 
 // draws a bullet on screen for a given colour
@@ -189,6 +242,7 @@ ship_t* buildShip(vec2_t centre)
 {
   ship_t* ship = (ship_t*) malloc(sizeof(ship_t));
 
+  /* Calculate ship vectors based on centre */
   ship->centre = centre;
   ship->tip.x = centre.x; ship->tip.y = centre.y + 10;
   ship->lFin.x = centre.x - 5; ship->lFin.y = centre.y - 5;
@@ -213,12 +267,12 @@ void rotateShip(ship_t* ship, int deg)
   // convert from degrees to radians
   float rad = deg * (M_PI / 180);
 
-  // apply rotational matrix to ship coordinates
+  /* apply rotational matrix to ship coordinates */
   rotMatCenter(&ship->tip, rad, &ship->centre);
   rotMatCenter(&ship->lFin, rad, &ship->centre);
   rotMatCenter(&ship->rFin, rad, &ship->centre);
 
-  // update ship stored angle (degrees)
+  /* update ship stored angle (degrees) */
   ship->dirDeg += deg;
   ship->dirDeg %= 360; // keep degrees below 360
 }
@@ -231,13 +285,13 @@ void rotMatCenter(vec2_t* point, float rad, vec2_t* centre)
   float x = point->x - centre->x;
   float y = point->y - centre->y;
 
-  // Rotate
+  /* Apply rotation matrix */
   // R(x) = [cos(x) -sin(x)]
   //        [sin(x)  cos(x)]
   float x_rot = cos(rad) * x - sin(rad) * y;
   float y_rot = sin(rad) * x + cos(rad) * y;
 
-  // Translate back to center
+  /* Translate back to center */
   point->x = x_rot + centre->x;
   point->y = y_rot + centre->y;
 }
