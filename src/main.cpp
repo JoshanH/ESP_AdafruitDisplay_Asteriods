@@ -83,6 +83,7 @@ void drawBullet               (bullet_t* bullet, int colour);
 void moveBullet               (bullet_t* bullet, bulletList_t* bulletsList);
 void freeBullet               (bullet_t* bullet, bulletList_t* bulletsList);
 bool bulletCollision          (bullet_t* bullet, bulletList_t* bulletsList);
+void updateWorldBullets       (bulletList_t* bulletsList);
 
 /* DEBUG FUNCTION DECLARATIONS =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */
 
@@ -115,16 +116,26 @@ void setup()
 
   // testing segment == START
   shootBullet(worldBulletList, ship->centre, ship->dirDeg);
+  int debugAction = 0;
+
   while(1){
     dis.fillScreen(BLACK);
 
-    if (worldBulletList->head != NULL){
-      moveBullet(worldBulletList->head, worldBulletList);
+    if (debugAction % 10 == 0){
+      shootBullet(worldBulletList, ship->centre, ship->dirDeg);
     }
 
-    rotateShip(ship, 10);
+    updateWorldBullets(worldBulletList);
+
+    if (debugAction % 5 == 0){
+      rotateShip(ship, 10);
+    }
+
     drawShip(ship, BLUE);
+
     printDebugValues(worldBulletList, ship);
+
+    debugAction++;
     delay(100);
   }
   // testing segment == END
@@ -139,6 +150,7 @@ void loop()
 
 /* DEBUG FUNCTIONS ========================================================= */
 
+// prints a debug screen onto display
 void printDebugValues(bulletList_t* list, ship_t* ship)
 {
   dis.setCursor(0,0);
@@ -149,6 +161,7 @@ void printDebugValues(bulletList_t* list, ship_t* ship)
   dis.println(debugWorldBulletNum(list));
 }
 
+// get length of bullet linked list
 int debugWorldBulletNum(bulletList_t* list)
 {
   bullet_t* current = list->head;
@@ -173,11 +186,30 @@ void initialiseScreen()
   dis.fillScreen(BLACK);
 }
 
+void updateWorldBullets(bulletList_t* bulletsList)
+{
+  /* check if world bullet list is not empty */
+  if (bulletsList->head != NULL)
+  {
+    /* goes through list and updates all bullets */
+    bullet_t* current = bulletsList->head;
+    while(current != NULL)
+    {
+      moveBullet(current, bulletsList);
+      current = current->next;
+    }
+  }
+
+  /* exit function */
+  return; 
+}
+
 // checks if a bullet has collided with the edge of the screen or an asteroid
 bool bulletCollision(bullet_t* bullet, bulletList_t* bulletsList)
 {
   /* check if bullet out of bounds of display */
-  if (bullet->head.x > WIDTH || bullet->head.y > HEIGHT)
+  if (bullet->head.x > WIDTH || bullet->head.y > HEIGHT || 
+      bullet->head.x < 0     || bullet->head.y < 0        )
   {
     /* free bullet from memory and remove from list */
     freeBullet(bullet, bulletsList);
@@ -193,7 +225,7 @@ bool bulletCollision(bullet_t* bullet, bulletList_t* bulletsList)
 void freeBullet(bullet_t* bullet, bulletList_t* bulletsList)
 {
 
-  /* checks if bullet is head in list */
+  /* checks if bullet is head of list */
   if (bulletsList->head == bullet)
   {
     bulletsList->head = bullet->next;
@@ -230,7 +262,7 @@ void moveBullet(bullet_t* bullet, bulletList_t* bulletsList)
 
   /* unit vector in direction of input degree scaled by bullet speed */
   float dx = cos(rad) * BULLETSPEED;
-  float dy = -1 * sin(rad) * BULLETSPEED;
+  float dy = sin(rad) * BULLETSPEED;
 
   /* bullet head and tail vectors updated */
   bullet->head.x += dx; 
@@ -316,7 +348,7 @@ void shootBullet(bulletList_t* bulletsList, vec2_t centre, int deg)
   // -sin(theta) is used as y axis is inverted on display
   float rad = deg * (M_PI / 180);
   newBullet->head.x = centre.x + (cos(rad) * BULLETSPEED);
-  newBullet->head.y = centre.y + (-1 * sin(rad) * BULLETSPEED);
+  newBullet->head.y = centre.y + (sin(rad) * BULLETSPEED);
 
   // draws the new bullet
   drawBullet(newBullet, RED);
@@ -338,7 +370,7 @@ ship_t* buildShip(vec2_t centre)
   ship->tip.x = centre.x; ship->tip.y = centre.y + 10;
   ship->lFin.x = centre.x - 5; ship->lFin.y = centre.y - 5;
   ship->rFin.x = centre.x + 5; ship->rFin.y = centre.y - 5;
-  ship->dirDeg = 270; // pointing down on display, which has y axis reversed
+  ship->dirDeg = 90; // pointing down on display, which has y axis reversed
 
   return ship;
 }
