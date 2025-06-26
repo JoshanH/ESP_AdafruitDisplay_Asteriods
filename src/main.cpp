@@ -99,7 +99,8 @@ void freeBullet               (bullet_t* bullet, bulletList_t* bulletsList);
 bool bulletCollision          (bullet_t* bullet, bulletList_t* bulletsList);
 void updateWorldBullets       (bulletList_t* bulletsList);
 
-void checkControllerInput     (ship_t* ship, bulletList_t* bulletsList, 
+void checkMoveInput           (ship_t* ship);
+void checkShootInput          (ship_t* ship, bulletList_t* bulletsList, 
                                int* shootCooldown);
 
 /* DEBUG FUNCTION DECLARATIONS =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */
@@ -142,7 +143,8 @@ void setup()
       shootCooldown--; // update shot cooldown
     }
     dis.fillScreen(BLACK);
-    checkControllerInput(ship, worldBulletList, &shootCooldown);
+    checkMoveInput(ship);
+    checkShootInput(ship, worldBulletList, &shootCooldown);
     drawShip(ship, BLUE);
     updateWorldBullets(worldBulletList);
     printDebugValues(worldBulletList, ship);
@@ -203,11 +205,26 @@ void initialiseControls()
   pinMode(SHOOTBUTTON, INPUT);
 }
 
-// checks which button has been pressed and performs respective function
-void checkControllerInput(ship_t* ship, bulletList_t* bulletsList, 
+// checks if shoot button pressed and shoots if shot cooldown expired
+void checkShootInput(ship_t* ship, bulletList_t* bulletsList, 
                           int* shootCooldown)
 {
-  /* checks which button has been pressed */
+  if (digitalRead(SHOOTBUTTON) == LOW && *shootCooldown == 0)
+  {
+    shootBullet(bulletsList, ship);
+    *shootCooldown = SHOTCOOLDOWN;
+    return;
+  }
+
+  /* shoot button not pressed */
+  return;
+}
+
+// checks which movement button has been pressed and applies 
+// rotation function accordingly
+void checkMoveInput(ship_t* ship)
+{
+  /* checks which movement button has been pressed */
   if (digitalRead(LEFTBUTTON) == LOW)
   {
     rotateShip(ship, (-1 * ROTSTEP)); // negative for left rotation
@@ -220,14 +237,7 @@ void checkControllerInput(ship_t* ship, bulletList_t* bulletsList,
     return;
   }
 
-  if (digitalRead(SHOOTBUTTON) == LOW && *shootCooldown == 0)
-  {
-    shootBullet(bulletsList, ship);
-    *shootCooldown = SHOTCOOLDOWN;
-    return;
-  }
-
-  /* no button pressed */
+  /* neither button pressed */
   return;
 }
 
