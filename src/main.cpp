@@ -100,6 +100,7 @@ void drawLineV                (int x0, int y0, int x1, int y1, int colour);
 void drawLineH                (int x0, int y0, int x1, int y1, int colour);
 void drawLineXY               (int x0, int y0, int x1, int y1, int colour);
 void drawLineVec              (vec2_t p1, vec2_t p2, int colour);
+void scaleVec2FromCentre      (vec2_t* point, vec2_t* centre, float scalar);
 
 void rotMatCenter             (vec2_t* point, float rad, vec2_t* centre);
 
@@ -115,11 +116,12 @@ void freeBullet               (bullet_t* bullet, bulletList_t* bulletsList);
 bool bulletCollision          (bullet_t* bullet, bulletList_t* bulletsList);
 void updateWorldBullets       (bulletList_t* bulletsList);
 
-void calculateVec2OfAsteroid  (asteroid_t* asteroid);
-void spawnAsteroid            (asteroidList_t* asteroidList);
-void drawAsteroid             (asteroid_t* asteroid, int colour);
-void rotateAsteroid           (asteroid_t* asteroid, float rad);
-void moveAsteroid             (asteroid_t* asteroid);
+void calculateVec2OfAsteroid      (asteroid_t* asteroid);
+void spawnAsteroid                (asteroidList_t* asteroidList);
+void drawAsteroid                 (asteroid_t* asteroid, int colour);
+void rotateAsteroid               (asteroid_t* asteroid, float rad);
+void moveAsteroid                 (asteroid_t* asteroid);
+asteroidList_t* buildAsteroidList ();
 
 void checkMoveInput           (ship_t* ship);
 void checkShootInput          (ship_t* ship, bulletList_t* bulletsList, 
@@ -128,7 +130,11 @@ void checkShootInput          (ship_t* ship, bulletList_t* bulletsList,
 /* DEBUG FUNCTION DECLARATIONS =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */
 
 int debugWorldBulletNum       (bulletList_t* list);
-void printDebugValues         (bulletList_t* list, ship_t* ship);
+int debugWorldAsteroidNum     (asteroidList_t* list);
+void printDebugValues         (bulletList_t* bulList, ship_t* ship, 
+                               asteroidList_t* astList);
+
+
 
 
 // initialise display screen in program
@@ -158,7 +164,11 @@ void setup()
   // used to check if bullet shot this tick
   int shootCooldown = SHOTCOOLDOWN;
 
+  asteroidList_t* worldAsteroidList = buildAsteroidList();
+
   // testing segment == START
+  spawnAsteroid(worldAsteroidList);
+
   while(1){ 
 
     // increment shot cooldown timer
@@ -171,10 +181,11 @@ void setup()
     checkShootInput(ship, worldBulletList, &shootCooldown);
     drawShip(ship, BLUE);
     updateWorldBullets(worldBulletList);
+    moveAsteroid(worldAsteroidList->head);
 
     // print debug screen only if activated
     if (digitalRead(DEBUGSWITCH) == LOW) { 
-      printDebugValues(worldBulletList, ship); 
+      printDebugValues(worldBulletList, ship, worldAsteroidList); 
     }
 
     delay(TICKSPEED);
@@ -192,14 +203,16 @@ void loop()
 /* DEBUG FUNCTIONS ========================================================= */
 
 // prints a debug screen onto display
-void printDebugValues(bulletList_t* list, ship_t* ship)
+void printDebugValues(bulletList_t* bulList, ship_t* ship, asteroidList_t* astList)
 {
   dis.setCursor(0,0);
   dis.setTextColor(WHITE);
   dis.print("Ship Direction Degrees: ");
   dis.println(ship->dirDeg);
   dis.print("World Bullet Count: ");
-  dis.println(debugWorldBulletNum(list));
+  dis.println(debugWorldBulletNum(bulList));
+  dis.print("World Asteroid Count: ");
+  dis.println(debugWorldAsteroidNum(astList));
 }
 
 // get length of bullet linked list
@@ -217,15 +230,42 @@ int debugWorldBulletNum(bulletList_t* list)
   return count;
 }
 
+int debugWorldAsteroidNum(asteroidList_t* list)
+{
+  asteroid_t* current = list->head;
+  int count = 0;
+  
+  while(current != NULL)
+  {
+    current = current->next;
+    count++;
+  }
+
+  return count;
+}
+
 /* FUNCTIONS =============================================================== */
+
+asteroidList_t* buildAsteroidList()
+{
+  // allocate memory to array
+  asteroidList_t* asteroidList = (asteroidList_t*) malloc(sizeof(asteroidList_t));
+
+  // check if memory allocated sucessfully
+  if (asteroidList == NULL)
+  {
+    dis.printf("worldAsteroids array malloc fail!");
+    return NULL;
+  }
+
+  // sets head bullet pointer to NULL
+  asteroidList->head = NULL;
+
+  return asteroidList;
+}
 
 void moveAsteroid(asteroid_t* asteroid)
 {
-  /* calculate centre of screen */
-  vec2_t centreOfScreen;
-  centreOfScreen.x = WIDTH / 2;
-  centreOfScreen.y = HEIGHT / 2;
-
   /* degrees converted to radians */
   float rad = asteroid->deg * (M_PI / 180);
 
@@ -261,12 +301,19 @@ void moveAsteroid(asteroid_t* asteroid)
 
   asteroid->centre.x -= dx;
   asteroid->centre.y -= dy;
+
+  drawAsteroid(asteroid, CREAM);
 }
 
 // spawns a new asteroid in radnom off screen position and adds it to 
 // the world's asteroid list
 void spawnAsteroid(asteroidList_t* asteroidList)
 {
+  /* calculate centre of screen */
+  vec2_t centreOfScreen;
+  centreOfScreen.x = WIDTH / 2;
+  centreOfScreen.y = HEIGHT / 2;
+
   /* allocate memory to new asteroid */
   
   asteroid_t* newAsteroid = (asteroid_t*) malloc(sizeof(asteroid_t));
@@ -292,7 +339,7 @@ void spawnAsteroid(asteroidList_t* asteroidList)
     }
 
     // attach new bullet to end of list
-    nextAsteroid->next = nextAsteroid;
+    nextAsteroid->next = newAsteroid;
   } 
     else // list is empty
   {
@@ -313,19 +360,32 @@ void spawnAsteroid(asteroidList_t* asteroidList)
   float rad = deg * (M_PI / 180);
   // scale unit vector in direction of deg to puch asteroid off screen
   // scaled from centre to offscreen+10 to ensure not drawn on screen slightly
-  newAsteroid->centre.x = cos(rad) * (max((HEIGHT / 2), (WIDTH / 2)) + 10);
-  newAsteroid->centre.y = sin(rad) * (max((HEIGHT / 2), (WIDTH / 2)) + 10);
+  newAsteroid->centre.x = centreOfScreen.x 
+                          + (cos(rad) * (max((HEIGHT / 2), (WIDTH / 2)) + 10));
+  newAsteroid->centre.y = centreOfScreen.y 
+                          + (sin(rad) * (max((HEIGHT / 2), (WIDTH / 2)) + 10));
 
   /* calculate positions of vectors of new asteroid */
 
   calculateVec2OfAsteroid(newAsteroid);
 
+  /* scale asteroid by random amount */
+  float scalar = (randomValue % 3) + 1;
+  scaleVec2FromCentre(&newAsteroid->tL, &newAsteroid->centre, scalar);
+  scaleVec2FromCentre(&newAsteroid->tR, &newAsteroid->centre, scalar);
+  scaleVec2FromCentre(&newAsteroid->mL, &newAsteroid->centre, scalar);
+  scaleVec2FromCentre(&newAsteroid->mR, &newAsteroid->centre, scalar);
+  scaleVec2FromCentre(&newAsteroid->bL, &newAsteroid->centre, scalar);
+  scaleVec2FromCentre(&newAsteroid->bR, &newAsteroid->centre, scalar);
+  scaleVec2FromCentre(&newAsteroid->cL, &newAsteroid->centre, scalar);
+  scaleVec2FromCentre(&newAsteroid->cR, &newAsteroid->centre, scalar);
+
   // set asteroid aproach degree
   newAsteroid->deg = deg;
 
-  /* rotate asteroid random amount (reusing variables) */
-  deg = esp_random() % 360; // new random degree
-  rad = deg * (M_PI / 180);
+  /* rotate asteroid random amount */
+  int rotDeg = esp_random() % 360; // new random degree
+  int rotRad = deg * (M_PI / 180);
 
   // rotate all vectors
   rotateAsteroid(newAsteroid, rad);
@@ -366,29 +426,29 @@ void drawAsteroid(asteroid_t* asteroid, int colour)
 // purely for abstraction
 void calculateVec2OfAsteroid(asteroid_t* asteroid)
 {
-  asteroid->tL.x = asteroid->centre.x - 2;
-  asteroid->tL.y = asteroid->centre.y + 5;
+  asteroid->tL.x = asteroid->centre.x - 4;
+  asteroid->tL.y = asteroid->centre.y + 10;
 
-  asteroid->tR.x = asteroid->centre.x + 3;
-  asteroid->tR.y = asteroid->centre.y + 5;
+  asteroid->tR.x = asteroid->centre.x + 6;
+  asteroid->tR.y = asteroid->centre.y + 10;
 
-  asteroid->mL.x = asteroid->centre.x - 5;
-  asteroid->mL.y = asteroid->centre.y + 1;
+  asteroid->mL.x = asteroid->centre.x - 10;
+  asteroid->mL.y = asteroid->centre.y + 2;
 
-  asteroid->mR.x = asteroid->centre.x + 5;
-  asteroid->mR.y = asteroid->centre.y + 1;
+  asteroid->mR.x = asteroid->centre.x + 10;
+  asteroid->mR.y = asteroid->centre.y + 2;
 
-  asteroid->bL.x = asteroid->centre.x - 4;
-  asteroid->bL.y = asteroid->centre.y - 3;
+  asteroid->bL.x = asteroid->centre.x - 8;
+  asteroid->bL.y = asteroid->centre.y - 6;
 
-  asteroid->bR.x = asteroid->centre.x + 3;
-  asteroid->bR.y = asteroid->centre.y - 4;
+  asteroid->bR.x = asteroid->centre.x + 6;
+  asteroid->bR.y = asteroid->centre.y - 8;
 
-  asteroid->cL.x = asteroid->centre.x - 2;
-  asteroid->cL.y = asteroid->centre.y - 3;
+  asteroid->cL.x = asteroid->centre.x - 4;
+  asteroid->cL.y = asteroid->centre.y - 6;
 
   asteroid->cR.x = asteroid->centre.x;
-  asteroid->cR.y = asteroid->centre.y - 5;
+  asteroid->cR.y = asteroid->centre.y - 10;
 }
 
 // Initialises the Adafruit display
@@ -682,6 +742,13 @@ void rotMatCenter(vec2_t* point, float rad, vec2_t* centre)
   /* Translate back to center */
   point->x = x_rot + centre->x;
   point->y = y_rot + centre->y;
+}
+
+// vector is scaled from its centre by an input scalar
+void scaleVec2FromCentre(vec2_t* point, vec2_t* centre, float scalar) 
+{
+    point->x = centre->x + (point->x - centre->x) * scalar;
+    point->y = centre->y + (point->y - centre->y) * scalar;
 }
 
 // draws a line between two vec2_t
