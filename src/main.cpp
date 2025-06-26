@@ -84,7 +84,11 @@ void moveBullet               (bullet_t* bullet, bulletList_t* bulletsList);
 void freeBullet               (bullet_t* bullet, bulletList_t* bulletsList);
 bool bulletCollision          (bullet_t* bullet, bulletList_t* bulletsList);
 
-int debugListLength(bulletList_t* list);
+/* DEBUG FUNCTION DECLARATIONS =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */
+
+int debugWorldBulletNum       (bulletList_t* list);
+void printDebugValues         (bulletList_t* list, ship_t* ship);
+
 
 // initialise display screen in program
 Adafruit_ST7789 dis = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
@@ -120,8 +124,7 @@ void setup()
 
     rotateShip(ship, 10);
     drawShip(ship, BLUE);
-    dis.setCursor(0,0);
-    dis.printf("World Bullet Count: %d", debugListLength(worldBulletList));
+    printDebugValues(worldBulletList, ship);
     delay(100);
   }
   // testing segment == END
@@ -133,7 +136,20 @@ void loop()
 
 }
 
-int debugListLength(bulletList_t* list)
+
+/* DEBUG FUNCTIONS ========================================================= */
+
+void printDebugValues(bulletList_t* list, ship_t* ship)
+{
+  dis.setCursor(0,0);
+  dis.setTextColor(WHITE);
+  dis.print("Ship Direction Degrees: ");
+  dis.println(ship->dirDeg);
+  dis.print("World Bullet Count: ");
+  dis.println(debugWorldBulletNum(list));
+}
+
+int debugWorldBulletNum(bulletList_t* list)
 {
   bullet_t* current = list->head;
   int count = 0;
@@ -146,7 +162,6 @@ int debugListLength(bulletList_t* list)
 
   return count;
 }
-
 
 /* FUNCTIONS =============================================================== */
 
@@ -206,7 +221,8 @@ void freeBullet(bullet_t* bullet, bulletList_t* bulletsList)
   free(bullet);
 }
 
-// updates the bullet's movement and draws bullet in updates location
+// updates the bullet's movement and draws bullet in updates location,
+// also handles collision
 void moveBullet(bullet_t* bullet, bulletList_t* bulletsList)
 {
   /* degrees coonvereted to radians */
@@ -322,7 +338,7 @@ ship_t* buildShip(vec2_t centre)
   ship->tip.x = centre.x; ship->tip.y = centre.y + 10;
   ship->lFin.x = centre.x - 5; ship->lFin.y = centre.y - 5;
   ship->rFin.x = centre.x + 5; ship->rFin.y = centre.y - 5;
-  ship->dirDeg = 270; // pointing down
+  ship->dirDeg = 270; // pointing down on display, which has y axis reversed
 
   return ship;
 }
