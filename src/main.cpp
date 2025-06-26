@@ -14,8 +14,14 @@
 #define MAXBULLETS  35       // max number of bullets on screen at once
 #define BULLETSPEED 5        // pixels per tick
 
+#define ROTSTEP     10       // degrees of ship rotation per button press
+
 #define WIDTH       240
 #define HEIGHT      320
+
+#define LEFTBUTTON  35
+#define RIGHTBUTTON 34
+#define SHOOTBUTTON 33
 
 #define WHITE       0xFFFF
 #define BLACK       0x0000
@@ -69,21 +75,28 @@ struct bulletList_t
 /* FUNCTION DECLARATIONS =================================================== */
 
 void initialiseScreen         ();
+void initialiseControls       ();
+
 void drawLineV                (int x0, int y0, int x1, int y1, int colour);
 void drawLineH                (int x0, int y0, int x1, int y1, int colour);
 void drawLineXY               (int x0, int y0, int x1, int y1, int colour);
 void drawLineVec              (vec2_t p1, vec2_t p2, int colour);
+
 void rotMatCenter             (vec2_t* point, float rad, vec2_t* centre);
+
 ship_t* buildShip             (vec2_t centre);
 void drawShip                 (ship_t* ship, int colour);
 void rotateShip               (ship_t* ship, int deg);
+
 bulletList_t* buildBulletList ();
-void shootBullet              (bulletList_t* worldBullets, vec2_t centre, int deg);
+void shootBullet              (bulletList_t* bulletsList, ship_t* ship);
 void drawBullet               (bullet_t* bullet, int colour);
 void moveBullet               (bullet_t* bullet, bulletList_t* bulletsList);
 void freeBullet               (bullet_t* bullet, bulletList_t* bulletsList);
 bool bulletCollision          (bullet_t* bullet, bulletList_t* bulletsList);
 void updateWorldBullets       (bulletList_t* bulletsList);
+
+void checkControllerInput     (ship_t* ship, bulletList_t* bulletsList);
 
 /* DEBUG FUNCTION DECLARATIONS =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */
 
@@ -99,8 +112,9 @@ Adafruit_ST7789 dis = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
 
 void setup() 
 {
-  // initialises screen 
+  // initialises screen and control buttons
   initialiseScreen();
+  initialiseControls();
 
   // finds centre of screen and stores ar variable
   vec2_t centreOfScreen;
@@ -114,28 +128,14 @@ void setup()
   // inititialises the world bullets array (all values set to null)
   bulletList_t* worldBulletList = buildBulletList();
 
+
   // testing segment == START
-  shootBullet(worldBulletList, ship->centre, ship->dirDeg);
-  int debugAction = 0;
-
-  while(1){
+  while(1){ 
     dis.fillScreen(BLACK);
-
-    if (debugAction % 10 == 0){
-      shootBullet(worldBulletList, ship->centre, ship->dirDeg);
-    }
-
-    updateWorldBullets(worldBulletList);
-
-    if (debugAction % 5 == 0){
-      rotateShip(ship, 10);
-    }
-
+    checkControllerInput(ship, worldBulletList);
     drawShip(ship, BLUE);
-
+    updateWorldBullets(worldBulletList);
     printDebugValues(worldBulletList, ship);
-
-    debugAction++;
     delay(100);
   }
   // testing segment == END
@@ -184,6 +184,39 @@ void initialiseScreen()
   Serial.begin(SERIALDISP);
   dis.init(WIDTH, HEIGHT);
   dis.fillScreen(BLACK);
+}
+
+void initialiseControls()
+{
+  pinMode(LEFTBUTTON, INPUT);
+  pinMode(RIGHTBUTTON, INPUT);
+  pinMode(SHOOTBUTTON, INPUT);
+}
+
+// checks which button has been pressed and performs respective function
+void checkControllerInput(ship_t* ship, bulletList_t* bulletsList)
+{
+  /* checks which button has been pressed */
+  if (digitalRead(LEFTBUTTON) == LOW)
+  {
+    rotateShip(ship, (-1 * ROTSTEP)); // negative for left rotation
+    return;
+  }
+
+  if (digitalRead(RIGHTBUTTON) == LOW)
+  {
+     rotateShip(ship, ROTSTEP); // positive for right rotation
+    return;
+  }
+
+  if (digitalRead(SHOOTBUTTON) == LOW)
+  {
+    shootBullet(bulletsList, ship);
+    return;
+  }
+
+  /* no button pressed */
+  return;
 }
 
 void updateWorldBullets(bulletList_t* bulletsList)
@@ -300,8 +333,16 @@ bulletList_t* buildBulletList()
 }
 
 // spawns a bullet from a centre point in a direction (degrees)
-void shootBullet(bulletList_t* bulletsList, vec2_t centre, int deg)
+void shootBullet(bulletList_t* bulletsList, ship_t* ship)
 {
+  vec2_t centre;
+  int deg;
+
+  /* fill location and direction varibes with ship data */
+  centre.x = ship->centre.x;
+  centre.y = ship->centre.y;
+  deg = ship->dirDeg;
+
   /* allocate memory to new bullet */
 
   bullet_t* newBullet = (bullet_t*) malloc(sizeof(bullet_t));
