@@ -6,27 +6,30 @@
 
 /* CONSTANTS =============================================================== */
 
-#define TFT_CS      5        // Chip select
-#define TFT_DC      16       // Data/Command
-#define TFT_RST     17       // Reset (can be -1 if connected to ESP32 reset)
-#define SERIALDISP  115200   // Serial location of display
+#define TFT_CS        5        // Chip select
+#define TFT_DC        16       // Data/Command
+#define TFT_RST       17       // Reset (can be -1 if connected to ESP32 reset)
+#define SERIALDISP    115200   // Serial location of display
 
-#define MAXBULLETS  35       // max number of bullets on screen at once
-#define BULLETSPEED 5        // pixels per tick
+#define MAXBULLETS    35       // max number of bullets on screen at once
+#define BULLETSPEED   5        // pixels per tick
+#define SHOTCOOLDOWN  2        // number of ticks before next shot allowed  
 
-#define ROTSTEP     10       // degrees of ship rotation per button press
+#define ROTSTEP       10       // degrees of ship rotation per button press
 
-#define WIDTH       240
-#define HEIGHT      320
+#define TICKSPEED     100      // tick speed in milliseconds
 
-#define LEFTBUTTON  35
-#define RIGHTBUTTON 34
-#define SHOOTBUTTON 33
+#define WIDTH         240
+#define HEIGHT        320
 
-#define WHITE       0xFFFF
-#define BLACK       0x0000
-#define BLUE        0x00FF
-#define RED         0xF800 
+#define LEFTBUTTON    35
+#define RIGHTBUTTON   34
+#define SHOOTBUTTON   33
+
+#define WHITE         0xFFFF
+#define BLACK         0x0000
+#define BLUE          0x00FF
+#define RED           0xF800 
 
 /* STRUCTURES ============================================================== */
 
@@ -96,7 +99,8 @@ void freeBullet               (bullet_t* bullet, bulletList_t* bulletsList);
 bool bulletCollision          (bullet_t* bullet, bulletList_t* bulletsList);
 void updateWorldBullets       (bulletList_t* bulletsList);
 
-void checkControllerInput     (ship_t* ship, bulletList_t* bulletsList);
+void checkControllerInput     (ship_t* ship, bulletList_t* bulletsList, 
+                               int* shootCooldown);
 
 /* DEBUG FUNCTION DECLARATIONS =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */
 
@@ -128,15 +132,21 @@ void setup()
   // inititialises the world bullets array (all values set to null)
   bulletList_t* worldBulletList = buildBulletList();
 
+  // used to check if bullet shot this tick
+  int shootCooldown = SHOTCOOLDOWN;
 
   // testing segment == START
   while(1){ 
+    if (shootCooldown != 0)
+    {
+      shootCooldown--; // update shot cooldown
+    }
     dis.fillScreen(BLACK);
-    checkControllerInput(ship, worldBulletList);
+    checkControllerInput(ship, worldBulletList, &shootCooldown);
     drawShip(ship, BLUE);
     updateWorldBullets(worldBulletList);
     printDebugValues(worldBulletList, ship);
-    delay(100);
+    delay(TICKSPEED);
   }
   // testing segment == END
 }
@@ -194,7 +204,8 @@ void initialiseControls()
 }
 
 // checks which button has been pressed and performs respective function
-void checkControllerInput(ship_t* ship, bulletList_t* bulletsList)
+void checkControllerInput(ship_t* ship, bulletList_t* bulletsList, 
+                          int* shootCooldown)
 {
   /* checks which button has been pressed */
   if (digitalRead(LEFTBUTTON) == LOW)
@@ -209,9 +220,10 @@ void checkControllerInput(ship_t* ship, bulletList_t* bulletsList)
     return;
   }
 
-  if (digitalRead(SHOOTBUTTON) == LOW)
+  if (digitalRead(SHOOTBUTTON) == LOW && *shootCooldown == 0)
   {
     shootBullet(bulletsList, ship);
+    *shootCooldown = SHOTCOOLDOWN;
     return;
   }
 
