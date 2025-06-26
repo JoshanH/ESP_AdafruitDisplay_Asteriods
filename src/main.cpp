@@ -122,6 +122,7 @@ void drawAsteroid                 (asteroid_t* asteroid, int colour);
 void rotateAsteroid               (asteroid_t* asteroid, float rad);
 void moveAsteroid                 (asteroid_t* asteroid);
 asteroidList_t* buildAsteroidList ();
+void updateWorldAsteroids         (asteroidList_t* asteroidList);
 
 void checkMoveInput           (ship_t* ship);
 void checkShootInput          (ship_t* ship, bulletList_t* bulletsList, 
@@ -167,8 +168,7 @@ void setup()
   asteroidList_t* worldAsteroidList = buildAsteroidList();
 
   // testing segment == START
-  spawnAsteroid(worldAsteroidList);
-
+  int tickCounter = 0;
   while(1){ 
 
     // increment shot cooldown timer
@@ -181,13 +181,18 @@ void setup()
     checkShootInput(ship, worldBulletList, &shootCooldown);
     drawShip(ship, BLUE);
     updateWorldBullets(worldBulletList);
-    moveAsteroid(worldAsteroidList->head);
+    if ((tickCounter % 5) == 0){
+      spawnAsteroid(worldAsteroidList);
+    }
 
+    updateWorldAsteroids(worldAsteroidList);
+    
     // print debug screen only if activated
     if (digitalRead(DEBUGSWITCH) == LOW) { 
       printDebugValues(worldBulletList, ship, worldAsteroidList); 
     }
 
+    tickCounter++;
     delay(TICKSPEED);
   }
   // testing segment == END
@@ -245,6 +250,21 @@ int debugWorldAsteroidNum(asteroidList_t* list)
 }
 
 /* FUNCTIONS =============================================================== */
+
+void updateWorldAsteroids(asteroidList_t* asteroidList)
+{
+  /* check if world asteroid list is not empty */
+  if (asteroidList->head != NULL)
+  {
+    /* goes through list and updates all asteroids */
+    asteroid_t* current = asteroidList->head;
+    while(current != NULL)
+    {
+      moveAsteroid(current);
+      current = current->next;
+    }
+  }
+}
 
 asteroidList_t* buildAsteroidList()
 {
