@@ -25,6 +25,7 @@
 #define LEFTBUTTON    35
 #define RIGHTBUTTON   34
 #define SHOOTBUTTON   33
+#define DEBUGSWITCH   21
 
 #define WHITE         0xFFFF
 #define BLACK         0x0000
@@ -138,16 +139,21 @@ void setup()
 
   // testing segment == START
   while(1){ 
-    if (shootCooldown != 0)
-    {
-      shootCooldown--; // update shot cooldown
-    }
+
+    // increment shot cooldown timer
+    if (shootCooldown != 0) { shootCooldown--; }
+
     dis.fillScreen(BLACK);
     checkMoveInput(ship);
     checkShootInput(ship, worldBulletList, &shootCooldown);
     drawShip(ship, BLUE);
     updateWorldBullets(worldBulletList);
-    printDebugValues(worldBulletList, ship);
+
+    // print debug screen only if activated
+    if (digitalRead(DEBUGSWITCH) == LOW) { 
+      printDebugValues(worldBulletList, ship); 
+    }
+
     delay(TICKSPEED);
   }
   // testing segment == END
@@ -203,6 +209,7 @@ void initialiseControls()
   pinMode(LEFTBUTTON, INPUT);
   pinMode(RIGHTBUTTON, INPUT);
   pinMode(SHOOTBUTTON, INPUT);
+  pinMode(DEBUGSWITCH, INPUT);
 }
 
 // checks if shoot button pressed and shoots if shot cooldown expired
