@@ -12,8 +12,10 @@
 #define SERIALDISP    115200   // Serial location of display
 
 #define MAXBULLETS    35       // max number of bullets on screen at once
-#define BULLETSPEED   5        // pixels per tick
+#define BULLETSPEED   7        // pixels per tick
 #define SHOTCOOLDOWN  2        // number of ticks before next shot allowed  
+
+#define ASTEROIDSPEED 5        // pixels per tick
 
 #define ROTSTEP       10       // degrees of ship rotation per button press
 
@@ -31,6 +33,7 @@
 #define BLACK         0x0000
 #define BLUE          0x00FF
 #define RED           0xF800 
+#define CREAM         0xFDB6
 
 /* STRUCTURES ============================================================== */
 
@@ -52,13 +55,25 @@ struct ship_t {
 
 //    asteroid      //
 /*      ,__,        */
-/*      |__|        */
+/*      \_-`        */
 struct asteroid_t {
   vec2_t tL;
   vec2_t tR;
+  vec2_t mL;
+  vec2_t mR;
   vec2_t bL;
   vec2_t bR;
+  vec2_t cL;
+  vec2_t cR;
   float deg; // angle in degrees
+  vec2_t centre;
+  asteroid_t* next; // for use in world asteroid list
+};
+
+// linked list of all live asteroids
+struct asteroidList_t
+{
+  asteroid_t* head;
 };
 
 //     bullet       //
@@ -70,7 +85,7 @@ struct bullet_t {
   bullet_t* next; // for use in world bullet list
 };
 
-// array of all live bullets with count integrated
+// linked list of all live bullets
 struct bulletList_t 
 {
   bullet_t* head;
@@ -100,9 +115,15 @@ void freeBullet               (bullet_t* bullet, bulletList_t* bulletsList);
 bool bulletCollision          (bullet_t* bullet, bulletList_t* bulletsList);
 void updateWorldBullets       (bulletList_t* bulletsList);
 
+void calculateVec2OfAsteroid  (asteroid_t* asteroid);
+void spawnAsteroid            (asteroidList_t* asteroidList);
+void drawAsteroid             (asteroid_t* asteroid, int colour);
+void rotateAsteroid           (asteroid_t* asteroid, float rad);
+void moveAsteroid             (asteroid_t* asteroid);
+
 void checkMoveInput           (ship_t* ship);
 void checkShootInput          (ship_t* ship, bulletList_t* bulletsList, 
-                               int* shootCooldown);
+                              int* shootCooldown);
 
 /* DEBUG FUNCTION DECLARATIONS =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */
 
@@ -141,7 +162,9 @@ void setup()
   while(1){ 
 
     // increment shot cooldown timer
-    if (shootCooldown != 0) { shootCooldown--; }
+    if (shootCooldown != 0) { 
+      shootCooldown--; 
+    }
 
     dis.fillScreen(BLACK);
     checkMoveInput(ship);
@@ -195,6 +218,178 @@ int debugWorldBulletNum(bulletList_t* list)
 }
 
 /* FUNCTIONS =============================================================== */
+
+void moveAsteroid(asteroid_t* asteroid)
+{
+  /* calculate centre of screen */
+  vec2_t centreOfScreen;
+  centreOfScreen.x = WIDTH / 2;
+  centreOfScreen.y = HEIGHT / 2;
+
+  /* degrees converted to radians */
+  float rad = asteroid->deg * (M_PI / 180);
+
+  /* unit vector in direction of asteroid approach degree scaled */
+  /* by asteroid speed                                           */
+  float dx = cos(rad) * ASTEROIDSPEED;
+  float dy = sin(rad) * ASTEROIDSPEED;
+
+  /* all vectors in asteroid updated */
+  asteroid->tL.x -= dx;
+  asteroid->tL.y -= dy;
+
+  asteroid->tR.x -= dx;
+  asteroid->tR.y -= dy;
+
+  asteroid->mL.x -= dx;
+  asteroid->mL.y -= dy;
+
+  asteroid->mR.x -= dx;
+  asteroid->mR.y -= dy;
+
+  asteroid->bL.x -= dx;
+  asteroid->bL.y -= dy;
+
+  asteroid->bR.x -= dx;
+  asteroid->bR.y -= dy;
+
+  asteroid->cL.x -= dx;
+  asteroid->cL.y -= dy;
+
+  asteroid->cR.x -= dx;
+  asteroid->cR.y -= dy;
+
+  asteroid->centre.x -= dx;
+  asteroid->centre.y -= dy;
+}
+
+// spawns a new asteroid in radnom off screen position and adds it to 
+// the world's asteroid list
+void spawnAsteroid(asteroidList_t* asteroidList)
+{
+  /* allocate memory to new asteroid */
+  
+  asteroid_t* newAsteroid = (asteroid_t*) malloc(sizeof(asteroid_t));
+
+  /* check if memory allocated successfully */
+
+  if (newAsteroid == NULL)
+  {
+    dis.printf("newAsteroid malloc fail!");
+    return;
+  }
+
+  /* add new asteroid to world's asteroid list */
+
+  // if linked list not empty
+  if (asteroidList->head != NULL){
+    asteroid_t* nextAsteroid = asteroidList->head;
+
+    // search for end bullet of list
+    while(nextAsteroid->next != NULL)
+    {
+      nextAsteroid = nextAsteroid->next;
+    }
+
+    // attach new bullet to end of list
+    nextAsteroid->next = nextAsteroid;
+  } 
+    else // list is empty
+  {
+    asteroidList->head = newAsteroid;
+  }
+
+  /* assign random approaching degree and spawn point */
+
+  // generates a random integer
+  int randomValue = esp_random();
+
+  // restricts random integer to range [0, 360)
+  int deg = randomValue % 360;
+
+  /* push completely off screen */
+
+  // convert to radians
+  float rad = deg * (M_PI / 180);
+  // scale unit vector in direction of deg to puch asteroid off screen
+  // scaled from centre to offscreen+10 to ensure not drawn on screen slightly
+  newAsteroid->centre.x = cos(rad) * (max((HEIGHT / 2), (WIDTH / 2)) + 10);
+  newAsteroid->centre.y = sin(rad) * (max((HEIGHT / 2), (WIDTH / 2)) + 10);
+
+  /* calculate positions of vectors of new asteroid */
+
+  calculateVec2OfAsteroid(newAsteroid);
+
+  // set asteroid aproach degree
+  newAsteroid->deg = deg;
+
+  /* rotate asteroid random amount (reusing variables) */
+  deg = esp_random() % 360; // new random degree
+  rad = deg * (M_PI / 180);
+
+  // rotate all vectors
+  rotateAsteroid(newAsteroid, rad);
+
+  // set new bullets list pointer to null
+  newAsteroid->next = NULL;
+
+  /* astroid off screen, no need to draw until move */
+}
+
+// aplies 2D rotational matrix to an asteroid for a set number of radians
+void rotateAsteroid(asteroid_t* asteroid, float rad)
+{
+  rotMatCenter(&asteroid->tL, rad, &asteroid->centre);
+  rotMatCenter(&asteroid->tR, rad, &asteroid->centre);
+  rotMatCenter(&asteroid->mL, rad, &asteroid->centre);
+  rotMatCenter(&asteroid->mR, rad, &asteroid->centre);
+  rotMatCenter(&asteroid->bL, rad, &asteroid->centre);
+  rotMatCenter(&asteroid->bR, rad, &asteroid->centre);
+  rotMatCenter(&asteroid->cL, rad, &asteroid->centre);
+  rotMatCenter(&asteroid->cR, rad, &asteroid->centre);
+}
+
+// draws lines between all vectors of an input asteroid with input colour
+void drawAsteroid(asteroid_t* asteroid, int colour)
+{
+  drawLineVec(asteroid->tL, asteroid->tR, colour);
+  drawLineVec(asteroid->tR, asteroid->mR, colour);
+  drawLineVec(asteroid->mR, asteroid->bR, colour);
+  drawLineVec(asteroid->bR, asteroid->cR, colour);
+  drawLineVec(asteroid->cR, asteroid->cL, colour);
+  drawLineVec(asteroid->cL, asteroid->bL, colour);
+  drawLineVec(asteroid->bL, asteroid->mL, colour);
+  drawLineVec(asteroid->mL, asteroid->tL, colour);
+}
+
+// calculate vector posotions of asteroid from centre
+// purely for abstraction
+void calculateVec2OfAsteroid(asteroid_t* asteroid)
+{
+  asteroid->tL.x = asteroid->centre.x - 2;
+  asteroid->tL.y = asteroid->centre.y + 5;
+
+  asteroid->tR.x = asteroid->centre.x + 3;
+  asteroid->tR.y = asteroid->centre.y + 5;
+
+  asteroid->mL.x = asteroid->centre.x - 5;
+  asteroid->mL.y = asteroid->centre.y + 1;
+
+  asteroid->mR.x = asteroid->centre.x + 5;
+  asteroid->mR.y = asteroid->centre.y + 1;
+
+  asteroid->bL.x = asteroid->centre.x - 4;
+  asteroid->bL.y = asteroid->centre.y - 3;
+
+  asteroid->bR.x = asteroid->centre.x + 3;
+  asteroid->bR.y = asteroid->centre.y - 4;
+
+  asteroid->cL.x = asteroid->centre.x - 2;
+  asteroid->cL.y = asteroid->centre.y - 3;
+
+  asteroid->cR.x = asteroid->centre.x;
+  asteroid->cR.y = asteroid->centre.y - 5;
+}
 
 // Initialises the Adafruit display
 void initialiseScreen()
@@ -381,6 +576,7 @@ void shootBullet(bulletList_t* bulletsList, ship_t* ship)
   if (newBullet == NULL)
   {
     dis.printf("newBullet malloc fail!");
+    return;
   }
 
   /* add new bullet to world's bullet list */
@@ -415,7 +611,6 @@ void shootBullet(bulletList_t* bulletsList, ship_t* ship)
 
   // head of the bullet calculated by scaling unit vector in movement direction
   // (x,y) -> (x + dx, y + dy)
-  // -sin(theta) is used as y axis is inverted on display
   float rad = deg * (M_PI / 180);
   newBullet->head.x = centre.x + (cos(rad) * BULLETSPEED);
   newBullet->head.y = centre.y + (sin(rad) * BULLETSPEED);
