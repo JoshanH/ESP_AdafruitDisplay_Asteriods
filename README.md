@@ -1,4 +1,9 @@
-**---++===[{  ESP 32 SPACE INVADERS  }]===++---**
+                                                                  
+ _____ _____ _____ ___ ___    _____     _               _   _     
+|   __|   __|  _  |_  |_  |  |  _  |___| |_ ___ ___ ___|_|_| |___ 
+|   __|__   |   __|_  |  _|  |     |_ -|  _| -_|  _| . | | . |_ -|
+|_____|_____|__|  |___|___|  |__|__|___|_| |___|_| |___|_|___|___|
+                                                                  
 
 This program is a game written from scratch (appart from display drivers) to be run on an ESP32 with an Adafruit screen and simple button controllers.
 
