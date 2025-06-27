@@ -17,7 +17,7 @@
 
 #define ASTEROIDSPEED 2        // pixels per tick
 
-#define ROTSTEP       10       // degrees of ship rotation per button press
+#define ROTSTEP       15       // degrees of ship rotation per button press
 
 #define TICKSPEED     100      // tick speed in milliseconds
 
@@ -205,7 +205,7 @@ void setup()
       printDebugValues(worldBulletList, ship, worldAsteroidList, level); 
     }
 
-    if (level < 10 && tickCounter % 1000 == 1)
+    if (level < 10 && tickCounter % 100 == 1)
     {
       level++;
     }
@@ -322,6 +322,16 @@ void handleAsteroidCollision(asteroidList_t* asteroidList,
     if (checkCollisionVec2Ast(ship->centre, currentAsteroid))
     {
       gameOver(ship);
+    }
+
+    /* check if asteroid too far off screen */
+    if (currentAsteroid->centre.x > (WIDTH + 20)  ||
+        currentAsteroid->centre.y > (HEIGHT + 20) ||
+        currentAsteroid->centre.x < -20           ||
+        currentAsteroid->centre.y < -20             )
+    {
+      freeAsteroid(currentAsteroid, asteroidList);
+      return;
     }
 
     /* check each bullet in world's bullet list for a collision */
