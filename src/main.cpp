@@ -202,7 +202,7 @@ void setup()
     // print debug screen only if activated
     if (digitalRead(DEBUGSWITCH) == LOW) 
     { 
-      printDebugValues(worldBulletList, ship, worldAsteroidList); 
+      printDebugValues(worldBulletList, ship, worldAsteroidList, level); 
     }
 
     if (level < 10 && tickCounter % 100 == 0)
@@ -240,7 +240,7 @@ void printDebugValues(bulletList_t* bulList, ship_t* ship,
 
   dis.print("World Asteroid Count: ");
   dis.println(debugWorldAsteroidNum(astList));
-  
+
   dis.print("Game Level: ");
   dis.println(level);
 }
