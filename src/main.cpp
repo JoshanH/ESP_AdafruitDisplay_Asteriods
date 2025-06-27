@@ -205,7 +205,7 @@ void setup()
       printDebugValues(worldBulletList, ship, worldAsteroidList, level); 
     }
 
-    if (level < 10 && tickCounter % 100 == 0)
+    if (level < 10 && tickCounter % 1000 == 1)
     {
       level++;
     }
@@ -279,15 +279,12 @@ int debugWorldAsteroidNum(asteroidList_t* list)
 // displays game over message and runs infinite loop
 void gameOver(ship_t* ship)
 {
-  int shipSpinIncrement = 1000;
+  // clear screen
+  dis.fillScreen(BLACK);
+
   while(1)
   {
-    if (shipSpinIncrement == 0)
-    {
-      rotateShip(ship, 10);
-      shipSpinIncrement = 1000;
-    }
-
+    rotateShip(ship, 10);    
     drawShip(ship, RED);
 
     dis.setCursor(0, HEIGHT / 4);
@@ -298,10 +295,15 @@ void gameOver(ship_t* ship)
     dis.setCursor(0, (HEIGHT / 4) + 20);
     dis.setTextColor(WHITE);
     dis.setTextSize(1);
-    dis.print("You were killed by an Asteroid!");
+    dis.println(" ");
+    dis.println(" ");
+    dis.println(" ");
+    dis.println("You were killed by an Asteroid!");
+    dis.println(" ");
     dis.println("Your pilot has ejected.... Retry?");
 
-    shipSpinIncrement--;
+    // clear ship
+    drawShip(ship, BLACK);
   }
 }
 
