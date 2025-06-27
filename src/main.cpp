@@ -15,7 +15,7 @@
 #define BULLETSPEED   7        // pixels per tick
 #define SHOTCOOLDOWN  2        // number of ticks before next shot allowed  
 
-#define ASTEROIDSPEED 5        // pixels per tick
+#define ASTEROIDSPEED 2        // pixels per tick
 
 #define ROTSTEP       10       // degrees of ship rotation per button press
 
@@ -101,6 +101,7 @@ void drawLineH                (int x0, int y0, int x1, int y1, int colour);
 void drawLineXY               (int x0, int y0, int x1, int y1, int colour);
 void drawLineVec              (vec2_t p1, vec2_t p2, int colour);
 void scaleVec2FromCentre      (vec2_t* point, vec2_t* centre, float scalar);
+float distanceBetweenVec2     (vec2_t p1, vec2_t p2);
 
 void rotMatCenter             (vec2_t* point, float rad, vec2_t* centre);
 
@@ -116,13 +117,20 @@ void freeBullet               (bullet_t* bullet, bulletList_t* bulletsList);
 bool bulletCollision          (bullet_t* bullet, bulletList_t* bulletsList);
 void updateWorldBullets       (bulletList_t* bulletsList);
 
+asteroidList_t* buildAsteroidList ();
 void calculateVec2OfAsteroid      (asteroid_t* asteroid);
 void spawnAsteroid                (asteroidList_t* asteroidList);
 void drawAsteroid                 (asteroid_t* asteroid, int colour);
 void rotateAsteroid               (asteroid_t* asteroid, float rad);
 void moveAsteroid                 (asteroid_t* asteroid);
-asteroidList_t* buildAsteroidList ();
 void updateWorldAsteroids         (asteroidList_t* asteroidList);
+bool checkCollisionVec2Ast        (vec2_t point, asteroid_t* asteroid);
+void handleAsteroidCollision      (asteroidList_t* asteroidList, 
+                                   bulletList_t* bulletList, ship_t* ship);
+void freeAsteroid                 (asteroid_t* asteroid, 
+                                   asteroidList_t* asteroidList);
+
+void gameOver                 (ship_t* ship);
 
 void checkMoveInput           (ship_t* ship);
 void checkShootInput          (ship_t* ship, bulletList_t* bulletsList, 
@@ -133,7 +141,7 @@ void checkShootInput          (ship_t* ship, bulletList_t* bulletsList,
 int debugWorldBulletNum       (bulletList_t* list);
 int debugWorldAsteroidNum     (asteroidList_t* list);
 void printDebugValues         (bulletList_t* bulList, ship_t* ship, 
-                               asteroidList_t* astList);
+                               asteroidList_t* astList, int level);
 
 
 
@@ -169,6 +177,7 @@ void setup()
 
   // testing segment == START
   int tickCounter = 0;
+  int level = 1;
   while(1){ 
 
     // increment shot cooldown timer
@@ -181,15 +190,24 @@ void setup()
     checkShootInput(ship, worldBulletList, &shootCooldown);
     drawShip(ship, BLUE);
     updateWorldBullets(worldBulletList);
-    if ((tickCounter % 5) == 0){
+    handleAsteroidCollision(worldAsteroidList, worldBulletList, ship);
+
+    if ((tickCounter % (30 - level)) == 0)
+    {
       spawnAsteroid(worldAsteroidList);
     }
 
     updateWorldAsteroids(worldAsteroidList);
-    
+
     // print debug screen only if activated
-    if (digitalRead(DEBUGSWITCH) == LOW) { 
+    if (digitalRead(DEBUGSWITCH) == LOW) 
+    { 
       printDebugValues(worldBulletList, ship, worldAsteroidList); 
+    }
+
+    if (level < 10 && tickCounter % 100 == 0)
+    {
+      level++;
     }
 
     tickCounter++;
@@ -208,16 +226,23 @@ void loop()
 /* DEBUG FUNCTIONS ========================================================= */
 
 // prints a debug screen onto display
-void printDebugValues(bulletList_t* bulList, ship_t* ship, asteroidList_t* astList)
+void printDebugValues(bulletList_t* bulList, ship_t* ship, 
+                      asteroidList_t* astList, int level)
 {
   dis.setCursor(0,0);
   dis.setTextColor(WHITE);
+
   dis.print("Ship Direction Degrees: ");
   dis.println(ship->dirDeg);
+
   dis.print("World Bullet Count: ");
   dis.println(debugWorldBulletNum(bulList));
+
   dis.print("World Asteroid Count: ");
   dis.println(debugWorldAsteroidNum(astList));
+  
+  dis.print("Game Level: ");
+  dis.println(level);
 }
 
 // get length of bullet linked list
@@ -250,6 +275,121 @@ int debugWorldAsteroidNum(asteroidList_t* list)
 }
 
 /* FUNCTIONS =============================================================== */
+
+// displays game over message and runs infinite loop
+void gameOver(ship_t* ship)
+{
+  int shipSpinIncrement = 1000;
+  while(1)
+  {
+    if (shipSpinIncrement == 0)
+    {
+      rotateShip(ship, 10);
+      shipSpinIncrement = 1000;
+    }
+
+    drawShip(ship, RED);
+
+    dis.setCursor(0, HEIGHT / 4);
+    dis.setTextColor(RED);
+    dis.setTextSize(3);
+    dis.print("GAME OVER!");
+
+    dis.setCursor(0, (HEIGHT / 4) + 20);
+    dis.setTextColor(WHITE);
+    dis.setTextSize(1);
+    dis.print("You were killed by an Asteroid!");
+    dis.println("Your pilot has ejected.... Retry?");
+
+    shipSpinIncrement--;
+  }
+}
+
+// runs through list of asteroids and bullets to determine if an asteroid 
+// collision with ship or bullet has occurred
+void handleAsteroidCollision(asteroidList_t* asteroidList, 
+                             bulletList_t* bulletList, ship_t* ship)
+{
+  /* checks each asteroid in world's asteroid list for collisions */
+
+  asteroid_t* currentAsteroid = asteroidList->head;
+
+  while(currentAsteroid != NULL)
+  {
+    /* less costly ship collision check performed first */
+    if (checkCollisionVec2Ast(ship->centre, currentAsteroid))
+    {
+      gameOver(ship);
+    }
+
+    /* check each bullet in world's bullet list for a collision */
+    bullet_t* currentBullet = bulletList->head;
+    while(currentBullet != NULL)
+    {
+      // if collsiion between bullet and asteroid
+      if (checkCollisionVec2Ast(currentBullet->head, currentAsteroid))
+      {
+        freeAsteroid(currentAsteroid, asteroidList);
+        freeBullet(currentBullet, bulletList);
+        return;
+      }
+
+      currentBullet = currentBullet->next;
+    }
+    currentAsteroid = currentAsteroid->next;
+  }
+  
+  /* no asteroid collisions occurred */
+  return;
+}
+
+// removes an asteroid from memory and from linked list
+void freeAsteroid(asteroid_t* asteroid, asteroidList_t* asteroidList)
+{
+  /* check if the asteroid is the head of the list */
+  if (asteroidList->head == asteroid)
+  {
+    asteroidList->head = asteroid->next;
+    free(asteroid);
+    return;
+  }
+
+  asteroid_t* current = asteroidList->head;
+
+  /* Search for the asteroid in the list */
+  while (current->next != NULL && current->next != asteroid)
+  {
+    current = current->next;
+  }
+
+  // Asteroid not found in list
+  if (current->next == NULL)
+  {
+    dis.printf("Attempted to free non-existent asteroid!\n");
+    return;
+  }
+
+  current->next = asteroid->next;
+  /* asteroid is freed from memory */
+  free(asteroid);
+}
+
+// check if there is a collision between an input vector and bullet
+bool checkCollisionVec2Ast(vec2_t point, asteroid_t* asteroid)
+{
+  /* calculate distance between asteroid and bullet */
+  float distance = distanceBetweenVec2(point, asteroid->centre);
+
+  /* check if distance of bullet and centre of asteroid is less than or 
+     equal to the size of the asteroid */
+  if (distance <= distanceBetweenVec2(asteroid->centre, asteroid->mL))
+  {
+    return true;
+  }
+
+  /* bullet not in contact with asteroid */
+  return false; 
+}
 
 void updateWorldAsteroids(asteroidList_t* asteroidList)
 {
@@ -777,6 +917,15 @@ void drawLineVec(vec2_t p1, vec2_t p2, int colour)
 {
   drawLineXY((int)round(p1.x), (int)round(p1.y), 
              (int)round(p2.x), (int)round(p2.y), colour);
+}
+
+// gets the euclidean distance between two points
+// distance = sqrt( (x1 - x2)^2 + (y1 - y2)^2) )
+float distanceBetweenVec2(vec2_t p1, vec2_t p2)
+{
+  float dx = p1.x - p2.x;
+  float dy = p1.y - p2.y;
+  return sqrt((dx * dx) + (dy * dy));
 }
 
 
