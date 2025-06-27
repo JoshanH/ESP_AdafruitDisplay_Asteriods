@@ -175,9 +175,10 @@ void setup()
 
   asteroidList_t* worldAsteroidList = buildAsteroidList();
 
-  // testing segment == START
   int tickCounter = 0;
   int level = 1;
+
+  /* MAIN GAME LOOP */
   while(1){ 
 
     // increment shot cooldown timer
@@ -213,7 +214,6 @@ void setup()
     tickCounter++;
     delay(TICKSPEED);
   }
-  // testing segment == END
 }
 
 // loops until power off
