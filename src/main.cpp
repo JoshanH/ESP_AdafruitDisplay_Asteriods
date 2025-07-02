@@ -193,7 +193,7 @@ void setup()
     updateWorldBullets(worldBulletList);
     handleAsteroidCollision(worldAsteroidList, worldBulletList, ship);
 
-    if ((tickCounter % (30 - level)) == 0)
+    if ((tickCounter % (20 - level)) == 0)
     {
       spawnAsteroid(worldAsteroidList);
     }
